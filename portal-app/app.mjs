@@ -38,10 +38,8 @@ async function loadSession(token) {
   status.textContent = 'Signed in. Both workspaces are placeholders; no private data is connected.';
 }
 
-// STAGING DIAGNOSTIC ONLY: use the genuine ID token from this same sign-in to
-// prove that the protected API does not accept an ID token as an access token.
-// Send it only to our configured API, never log/store/display token material,
-// and never call a failure a pass (network/CORS errors are inconclusive).
+// STAGING DIAGNOSTIC ONLY: send the genuine ID token only to our own API;
+// never log, store or display token material. Network errors are inconclusive.
 async function checkIdTokenRejection(idToken) {
   if (typeof idToken !== 'string' || !idToken) {
     status.textContent += ' ID-token rejection test: NOT RUN (no ID token returned).';
@@ -68,9 +66,9 @@ async function checkIdTokenRejection(idToken) {
 }
 
 // STAGING DIAGNOSTIC ONLY: wait until a previously authorized genuine access
-// token is expired, then send it to the same /session route. Keep the token
-// in this tab's memory only; never print, persist, copy, or transmit elsewhere.
-// The decoded exp is used only to schedule the probe, never for authorization.
+// token is expired, then send it to our own /session route. Token remains in
+// this tab's memory, not storage, logs, screenshots or chat. JWT exp only
+// schedules the probe; it is not used as proof of authorization.
 function scheduleExpiredTokenProbe(token) {
   let expiresAt;
   try {
@@ -87,14 +85,15 @@ function scheduleExpiredTokenProbe(token) {
   }
 
   accessTokenExpiresAt = expiresAt;
-  const probeAt = expiresAt + 60 * 1000; // Allow for clock skew and boundary effects.
+  const probeAt = expiresAt + 60 * 1000; // Account for clock skew/boundary effects.
   status.textContent += ` Expired-token rejection test: PENDING (keep this tab open until ${new Date(probeAt).toLocaleTimeString()}).`;
-  expiryTimer = window.setTimeout(async () => {
+  async function runProbe() {
     expiryTimer = null;
     if (!accessToken || accessTokenExpiresAt !== expiresAt) return;
     if (Date.now() < probeAt) {
-      // Browser timers can fire early; do not misclassify a valid token.
-      expiryTimer = window.setTimeout(() => scheduleExpiredTokenProbe(accessToken), probeAt - Date.now());
+      // If the browser clock moved backwards, reschedule instead of trying
+      // a potentially still-valid token and misreporting the test.
+      expiryTimer = window.setTimeout(runProbe, probeAt - Date.now());
       return;
     }
     let code;
@@ -108,7 +107,7 @@ function scheduleExpiredTokenProbe(token) {
       locked('Session expired. Expired-token rejection test: INCONCLUSIVE (network or CORS error).');
       return;
     }
-    if (accessTokenExpiresAt !== expiresAt) return; // Signed out during request.
+    if (accessTokenExpiresAt !== expiresAt) return; // Signed out while requesting.
     if (code === 401 || code === 403) {
       locked(`Session expired. Expired-token rejection test: PASS (HTTP ${code}). Sign in again to continue.`);
     } else if (code === 200) {
@@ -116,7 +115,8 @@ function scheduleExpiredTokenProbe(token) {
     } else {
       locked(`Session expired. Expired-token rejection test: INCONCLUSIVE (HTTP ${code}).`);
     }
-  }, Math.max(0, probeAt - Date.now()));
+  }
+  expiryTimer = window.setTimeout(runProbe, Math.max(0, probeAt - Date.now()));
 }
 
 login.addEventListener('click', async () => {
