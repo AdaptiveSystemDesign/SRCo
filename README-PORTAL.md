@@ -19,7 +19,7 @@
 
 ## Expired-token live check — source added, NOT YET VERIFIED
 
-Commit `1b323a2819ef20ddd9342dd93ea7c08872792028` adds a temporary staging-only probe to `portal-app/app.mjs`. On a successful interactive login, it reads the genuine authorized access token's `exp` solely to schedule a single API request at expiry plus 60 seconds, sends that token only to the configured `/session` API, and displays only an HTTP status classification. Tokens remain in the browser tab's memory, never printed or stored. Sign-out cancels the timer and clears the token. Browser tab must remain open roughly one hour; background execution is not guaranteed. An HTTP 401/403 is a live denial; HTTP 200 is an unsafe result; network/CORS/other response is inconclusive. **Do not claim this probe has deployed, run or passed until its commit is shown deployed and a browser result is observed.** Do not share access or ID tokens, passwords, MFA codes or token-bearing URLs in chat or public repo. Remove both temporary diagnostic probes before private-data release.
+Commit `1b323a2819ef20ddd9342dd93ea7c08872792028` introduced a temporary staging-only expiry probe to `portal-app/app.mjs`; follow-up commit `b725df5567c9e10ebe7bee9ac7bcd292f9bcf388` corrected clock-change rescheduling. On a successful interactive login, it reads the genuine authorized access token's `exp` solely to schedule one API request at expiry plus 60 seconds, sends that token only to the configured `/session` API, and displays only HTTP status classification. Tokens remain in the browser tab's memory, never printed or stored. Sign-out cancels the timer and clears the token. Browser tab must remain open roughly one hour; background execution is not guaranteed. An HTTP 401/403 is a live denial; HTTP 200 is an unsafe result; network/CORS/other response is inconclusive. **Do not claim this probe has deployed, run or passed until the final source revision is shown deployed and a browser result is observed.** Do not share access or ID tokens, passwords, MFA codes or token-bearing URLs in chat or public repo. Remove both temporary diagnostic probes before private-data release.
 
 ## Other live authorization gate
 
@@ -27,7 +27,7 @@ A separate *different, genuinely valid, non-allowlisted user's* access-token tes
 
 ## Remaining production/release questions
 
-Browser callback-state mismatch end-to-end, session/revocation policy, CSP response-header compatibility, full regression after new commits, future protected endpoint/data-isolation review, log-group infrastructure ownership, and final per-service cost eligibility. Do not merge PR, switch `srco` DNS, connect SRCo private files or expose PK-OS until an explicitly approved release process.
+Browser callback-state mismatch end-to-end, session/revocation policy, CSP response-header compatibility, full regression after new commits, future protected endpoint/data-isolation review, log-group infrastructure ownership, and final per-service cost eligibility. Do not merge PR, switch `srco` DNS, connect SRCo private files or PK-OS until an explicitly approved release process.
 
 ## Billing checkpoint, not an invoice
 
