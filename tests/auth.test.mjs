@@ -1,0 +1,12 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { base64url, randomValue, pkceChallenge, validateConfig, authorizeUrl, consumePending } from '../portal-app/auth.mjs';
+const cfg = {domain:'https://example.auth.us-east-1.amazoncognito.com',clientId:'client123',apiUrl:'https://api.example.com',redirectUri:'https://preview.example.com/'};
+test('PKCE challenge matches known SHA256 example', async () => assert.equal(await pkceChallenge('abc'), 'ungWv48Bz-pBQUDeXa4iI7ADYaOWF3qctBD_YfIAFa0'));
+test('state/verifier generated with secure randomness', () => { const a=randomValue(), b=randomValue(); assert.match(a,/^[\w-]{43}$/); assert.notEqual(a,b); });
+test('base64url encodes without padding', () => assert.equal(base64url(new Uint8Array([255,254,253])), '__79'));
+test('blank and wrong-origin configs fail closed', () => { assert.equal(validateConfig({ ...cfg, clientId:'' },cfg.redirectUri),false); assert.equal(validateConfig(cfg,'https://evil.example/'),false); });
+test('valid exact-origin config accepted', () => assert.equal(validateConfig(cfg,cfg.redirectUri),true));
+test('authorize URL uses code grant and S256, never implicit', () => { const q = new URL(authorizeUrl(cfg, 'challenge', 'state')).searchParams; assert.equal(q.get('response_type'),'code');assert.equal(q.get('code_challenge_method'),'S256');assert.equal(q.get('state'),'state'); });
+test('pending state is one-time and exact', () => { let v=JSON.stringify({verifier:'x'.repeat(43),state:'s',createdAt:1000,redirectUri:cfg.redirectUri}); const s={getItem:()=>v,removeItem:()=>{v=null;}}; assert.equal(consumePending(s,'s',cfg.redirectUri,2000),'x'.repeat(43)); assert.equal(consumePending(s,'s',cfg.redirectUri,2000),null); });
+test('mismatch and expiration deny', () => { const s={getItem:()=>JSON.stringify({verifier:'x'.repeat(43),state:'s',createdAt:1000,redirectUri:cfg.redirectUri}),removeItem:()=>{}}; assert.equal(consumePending(s,'bad',cfg.redirectUri,2000),null); assert.equal(consumePending(s,'s',cfg.redirectUri,1000+300001),null); });
