@@ -7,8 +7,13 @@ const status = document.querySelector('#status');
 const dashboard = document.querySelector('#dashboard');
 const configured = validateConfig(config, window.location.href);
 let accessToken = null; // Never put access/ID/refresh tokens in web storage.
+let expiryTimer = null;
+let accessTokenExpiresAt = null;
 
 function locked(message) {
+  if (expiryTimer !== null) window.clearTimeout(expiryTimer);
+  expiryTimer = null;
+  accessTokenExpiresAt = null;
   accessToken = null;
   dashboard.hidden = true;
   logout.hidden = true;
@@ -60,6 +65,58 @@ async function checkIdTokenRejection(idToken) {
   } else {
     status.textContent += ` ID-token rejection test: INCONCLUSIVE (HTTP ${code}).`;
   }
+}
+
+// STAGING DIAGNOSTIC ONLY: wait until a previously authorized genuine access
+// token is expired, then send it to the same /session route. Keep the token
+// in this tab's memory only; never print, persist, copy, or transmit elsewhere.
+// The decoded exp is used only to schedule the probe, never for authorization.
+function scheduleExpiredTokenProbe(token) {
+  let expiresAt;
+  try {
+    const encoded = token.split('.')[1];
+    const claims = JSON.parse(atob(encoded.replace(/-/g, '+').replace(/_/g, '/')));
+    expiresAt = claims.exp * 1000;
+    if (!Number.isSafeInteger(claims.exp) || !Number.isSafeInteger(expiresAt) ||
+        expiresAt <= Date.now() || expiresAt > Date.now() + 2 * 60 * 60 * 1000) {
+      throw new Error('Invalid expiration');
+    }
+  } catch {
+    status.textContent += ' Expired-token rejection test: NOT RUN (expiration unavailable).';
+    return;
+  }
+
+  accessTokenExpiresAt = expiresAt;
+  const probeAt = expiresAt + 60 * 1000; // Allow for clock skew and boundary effects.
+  status.textContent += ` Expired-token rejection test: PENDING (keep this tab open until ${new Date(probeAt).toLocaleTimeString()}).`;
+  expiryTimer = window.setTimeout(async () => {
+    expiryTimer = null;
+    if (!accessToken || accessTokenExpiresAt !== expiresAt) return;
+    if (Date.now() < probeAt) {
+      // Browser timers can fire early; do not misclassify a valid token.
+      expiryTimer = window.setTimeout(() => scheduleExpiredTokenProbe(accessToken), probeAt - Date.now());
+      return;
+    }
+    let code;
+    try {
+      const response = await fetch(new URL('/session', config.apiUrl), {
+        method: 'GET', headers: { Authorization: `Bearer ${accessToken}` },
+        credentials: 'omit', cache: 'no-store'
+      });
+      code = response.status;
+    } catch {
+      locked('Session expired. Expired-token rejection test: INCONCLUSIVE (network or CORS error).');
+      return;
+    }
+    if (accessTokenExpiresAt !== expiresAt) return; // Signed out during request.
+    if (code === 401 || code === 403) {
+      locked(`Session expired. Expired-token rejection test: PASS (HTTP ${code}). Sign in again to continue.`);
+    } else if (code === 200) {
+      locked('SECURITY CHECK FAILED: API accepted an expired access token. Do not use this staging portal.');
+    } else {
+      locked(`Session expired. Expired-token rejection test: INCONCLUSIVE (HTTP ${code}).`);
+    }
+  }, Math.max(0, probeAt - Date.now()));
 }
 
 login.addEventListener('click', async () => {
@@ -125,6 +182,7 @@ async function initialize() {
     }
     await loadSession(tokens.access_token);
     await checkIdTokenRejection(tokens.id_token);
+    if (accessToken) scheduleExpiredTokenProbe(accessToken);
   } catch {
     locked('Access could not be verified. Sign in again.');
   }
