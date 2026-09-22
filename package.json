@@ -1,0 +1,7 @@
+{
+  "name": "srco-rd229-portal-staging",
+  "private": true,
+  "scripts": {
+    "test": "node --test tests/*.test.*"
+  }
+}

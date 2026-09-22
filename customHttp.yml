@@ -1,0 +1,14 @@
+# RD-229 staging Amplify app only. Do not merge or reuse for the live root site
+# without a separate review. Mirrors the four HTTP headers verified on 2026-09-22.
+# Root-level customHttp.yml overrides the Amplify console header configuration.
+customHeaders:
+  - pattern: '**'
+    headers:
+      - key: 'X-Content-Type-Options'
+        value: 'nosniff'
+      - key: 'X-Frame-Options'
+        value: 'DENY'
+      - key: 'Referrer-Policy'
+        value: 'no-referrer'
+      - key: 'Strict-Transport-Security'
+        value: 'max-age=86400'

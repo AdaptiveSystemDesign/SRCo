@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <meta http-equiv="referrer" content="no-referrer">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; connect-src 'self' https://*.auth.us-east-1.amazoncognito.com https://*.execute-api.us-east-1.amazonaws.com; style-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'">
+  <title>SRCo | Private entrance (staging)</title>
+  <link rel="stylesheet" href="./style.css">
+  <script defer src="./config.js"></script><script type="module" src="./app.mjs"></script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to main content</a>
+  <header><div class="wrap"><strong>SRCo</strong><span>Adaptive System Design · Staging</span></div></header>
+  <main id="main" class="wrap">
+    <p class="eyebrow">Protected re-entry · Development</p>
+    <h1>One entrance. Two workspaces.</h1>
+    <p id="status" role="status" aria-live="polite">Access remains disabled until authentication is configured.</p>
+    <div class="actions"><button id="login" type="button" hidden>Sign in securely</button><button id="logout" type="button" hidden>Sign out</button></div>
+    <section id="dashboard" hidden aria-label="Authorized dashboard">
+      <p class="notice">Authenticated demonstration only. Neither workspace nor any private files are connected.</p>
+      <div class="grid">
+        <article><h2>SRCo</h2><p>Research and engineering workspace</p><strong>Not connected</strong></article>
+        <article><h2>PK-OS</h2><p>Assistive operating system workspace</p><strong>Not connected</strong></article>
+      </div>
+    </section>
+    <p class="footnote">This interface alone does not protect static files. Real access is checked independently by the private API.</p>
+  </main>
+</body>
+</html>

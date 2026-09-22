@@ -1,0 +1,120 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >-
+  RD-229 STAGING ONLY: invitation-only Cognito + JWT-authorized HTTP API.
+  Not deployed automatically; static frontend must be hosted separately.
+Parameters:
+  PortalOrigin:
+    Type: String
+    Description: Exact HTTPS staging Amplify origin without trailing slash; do not use the live SRCo hostname yet.
+    AllowedPattern: '^https://[a-z0-9.-]+$'
+  DomainPrefix:
+    Type: String
+    Description: Region-unique Cognito prefix; no custom DNS required.
+    AllowedPattern: '^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$'
+  AllowedSubject:
+    Type: String
+    Default: ''
+    Description: Exact invited Cognito user sub; empty means the backend denies every user.
+    AllowedPattern: '^[a-zA-Z0-9-]*$'
+Resources:
+  PortalUsers:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub '${AWS::StackName}-users'
+      UserPoolTier: LITE
+      UsernameAttributes: [email]
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: true
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 14
+          RequireUppercase: true
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: true
+      MfaConfiguration: 'ON'
+      EnabledMfas: [SOFTWARE_TOKEN_MFA]
+      AccountRecoverySetting:
+        RecoveryMechanisms:
+          - Name: verified_email
+            Priority: 1
+  PortalClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: srco-portal-browser
+      UserPoolId: !Ref PortalUsers
+      GenerateSecret: false
+      PreventUserExistenceErrors: ENABLED
+      SupportedIdentityProviders: [COGNITO]
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthFlows: [code]
+      AllowedOAuthScopes: [openid, email]
+      CallbackURLs:
+        - !Sub '${PortalOrigin}/'
+      LogoutURLs:
+        - !Sub '${PortalOrigin}/'
+      AccessTokenValidity: 1
+      IdTokenValidity: 1
+      TokenValidityUnits:
+        AccessToken: hours
+        IdToken: hours
+      EnableTokenRevocation: true
+  PortalLoginDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      Domain: !Ref DomainPrefix
+      UserPoolId: !Ref PortalUsers
+      ManagedLoginVersion: 1
+  PortalApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: '$default'
+      CorsConfiguration:
+        AllowOrigins: [!Ref PortalOrigin]
+        AllowHeaders: [Authorization, Content-Type]
+        AllowMethods: [GET, OPTIONS]
+        MaxAge: 300
+      Auth:
+        DefaultAuthorizer: PortalJwt
+        Authorizers:
+          PortalJwt:
+            IdentitySource: '$request.header.Authorization'
+            JwtConfiguration:
+              issuer: !Sub 'https://cognito-idp.${AWS::Region}.amazonaws.com/${PortalUsers}'
+              audience: [!Ref PortalClient]
+  PortalSession:
+    Type: AWS::Serverless::Function
+    Properties:
+      Runtime: nodejs22.x
+      Handler: index.handler
+      CodeUri: backend/
+      MemorySize: 128
+      Timeout: 5
+      Environment:
+        Variables:
+          ALLOWED_SUBJECT: !Ref AllowedSubject
+          EXPECTED_ISSUER: !Sub 'https://cognito-idp.${AWS::Region}.amazonaws.com/${PortalUsers}'
+          EXPECTED_CLIENT_ID: !Ref PortalClient
+      Events:
+        Session:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref PortalApi
+            Path: /session
+            Method: GET
+            PayloadFormatVersion: '2.0'
+            Auth:
+              Authorizer: PortalJwt
+              AuthorizationScopes: [openid]
+Outputs:
+  UserPoolId:
+    Value: !Ref PortalUsers
+  PublicClientId:
+    Value: !Ref PortalClient
+  CognitoDomain:
+    Value: !Sub 'https://${DomainPrefix}.auth.${AWS::Region}.amazoncognito.com'
+  ApiUrl:
+    Value: !Sub 'https://${PortalApi}.execute-api.${AWS::Region}.amazonaws.com'
+  ActivePortalOrigin:
+    Value: !Ref PortalOrigin
