@@ -33,6 +33,35 @@ async function loadSession(token) {
   status.textContent = 'Signed in. Both workspaces are placeholders; no private data is connected.';
 }
 
+// STAGING DIAGNOSTIC ONLY: use the genuine ID token from this same sign-in to
+// prove that the protected API does not accept an ID token as an access token.
+// Send it only to our configured API, never log/store/display token material,
+// and never call a failure a pass (network/CORS errors are inconclusive).
+async function checkIdTokenRejection(idToken) {
+  if (typeof idToken !== 'string' || !idToken) {
+    status.textContent += ' ID-token rejection test: NOT RUN (no ID token returned).';
+    return;
+  }
+  let code;
+  try {
+    const response = await fetch(new URL('/session', config.apiUrl), {
+      method: 'GET', headers: { Authorization: `Bearer ${idToken}` },
+      credentials: 'omit', cache: 'no-store'
+    });
+    code = response.status;
+  } catch {
+    status.textContent += ' ID-token rejection test: INCONCLUSIVE (network or CORS error).';
+    return;
+  }
+  if (code === 401 || code === 403) {
+    status.textContent += ` ID-token rejection test: PASS (HTTP ${code}).`;
+  } else if (code === 200) {
+    locked('SECURITY CHECK FAILED: API accepted an ID token. Do not use this staging portal.');
+  } else {
+    status.textContent += ` ID-token rejection test: INCONCLUSIVE (HTTP ${code}).`;
+  }
+}
+
 login.addEventListener('click', async () => {
   if (!configured) return;
   login.disabled = true;
@@ -95,6 +124,7 @@ async function initialize() {
       throw new Error('Invalid token response.');
     }
     await loadSession(tokens.access_token);
+    await checkIdTokenRejection(tokens.id_token);
   } catch {
     locked('Access could not be verified. Sign in again.');
   }
